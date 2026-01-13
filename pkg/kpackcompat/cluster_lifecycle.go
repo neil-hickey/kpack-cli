@@ -9,45 +9,47 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 )
 
-// clusterLifecycle implement ClusterBuildpackInterface
-type clusterLifecycle struct{}
+// clusterLifecycles implement ClusterLifecycleInterface
+// ClusterLifecycle is only available in kpack v1alpha2 API, so all operations
+// return ErrV1alpha2Required when using a v1alpha1-only client.
+type clusterLifecycles struct{}
 
-func newClusterLifecycle(c *kpackV1alpha1CompatClient) *clusterLifecycle {
-	return &clusterLifecycle{}
+func newClusterLifecycles(c *kpackV1alpha1CompatClient) *clusterLifecycles {
+	return &clusterLifecycles{}
 }
 
-func (*clusterLifecycle) Create(ctx context.Context, clusterLifecycle *v1alpha2.ClusterLifecycle, opts v1.CreateOptions) (*v1alpha2.ClusterLifecycle, error) {
+func (*clusterLifecycles) Create(ctx context.Context, clusterLifecycle *v1alpha2.ClusterLifecycle, opts v1.CreateOptions) (*v1alpha2.ClusterLifecycle, error) {
 	return nil, ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (*clusterLifecycles) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (*clusterLifecycles) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
 	return ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha2.ClusterLifecycle, error) {
+func (*clusterLifecycles) Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha2.ClusterLifecycle, error) {
 	return nil, ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) List(ctx context.Context, opts v1.ListOptions) (*v1alpha2.ClusterLifecycleList, error) {
+func (*clusterLifecycles) List(ctx context.Context, opts v1.ListOptions) (*v1alpha2.ClusterLifecycleList, error) {
 	return nil, ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha2.ClusterLifecycle, err error) {
+func (*clusterLifecycles) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha2.ClusterLifecycle, err error) {
 	return nil, ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) Update(ctx context.Context, clusterLifecycle *v1alpha2.ClusterLifecycle, opts v1.UpdateOptions) (*v1alpha2.ClusterLifecycle, error) {
+func (*clusterLifecycles) Update(ctx context.Context, clusterLifecycle *v1alpha2.ClusterLifecycle, opts v1.UpdateOptions) (*v1alpha2.ClusterLifecycle, error) {
 	return nil, ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) UpdateStatus(ctx context.Context, clusterLifecycle *v1alpha2.ClusterLifecycle, opts v1.UpdateOptions) (*v1alpha2.ClusterLifecycle, error) {
+func (*clusterLifecycles) UpdateStatus(ctx context.Context, clusterLifecycle *v1alpha2.ClusterLifecycle, opts v1.UpdateOptions) (*v1alpha2.ClusterLifecycle, error) {
 	return nil, ErrV1alpha2Required
 }
 
-func (*clusterLifecycle) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (*clusterLifecycles) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return nil, ErrV1alpha2Required
 }

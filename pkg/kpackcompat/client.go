@@ -42,7 +42,7 @@ func (c *kpackV1alpha1CompatClient) ClusterStores() v1alpha2.ClusterStoreInterfa
 }
 
 func (c *kpackV1alpha1CompatClient) ClusterLifecycles() v1alpha2.ClusterLifecycleInterface {
-	return newClusterLifecycle(c)
+	return newClusterLifecycles(c)
 }
 
 func (c *kpackV1alpha1CompatClient) Images(namespace string) v1alpha2.ImageInterface {
