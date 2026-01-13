@@ -28,13 +28,21 @@ type ImportDiffer struct {
 	RelocatedImageProvider RelocatedImageProvider
 }
 
-func (id *ImportDiffer) DiffLifecycle(keychain authn.Keychain, kpConfig config.KpConfig, oldImg string, newImg string) (string, error) {
-	relocatedLifecycle, err := id.RelocatedImageProvider.RelocatedImage(keychain, kpConfig, newImg)
+func (id *ImportDiffer) DiffClusterLifecycle(keychain authn.Keychain, kpConfig config.KpConfig, oldCL *v1alpha2.ClusterLifecycle, newCL ClusterLifecycle) (diff string, err error) {
+	newCL.Image, err = id.RelocatedImageProvider.RelocatedImage(keychain, kpConfig, newCL.Image)
 	if err != nil {
 		return "", err
 	}
 
-	return id.Differ.Diff(oldImg, relocatedLifecycle)
+	var oldDiffableLifecycle interface{}
+	if oldCL != nil {
+		oldDiffableLifecycle = ClusterLifecycle{
+			Name:  oldCL.Name,
+			Image: oldCL.Spec.ImageSource.Image,
+		}
+	}
+
+	return id.Differ.Diff(oldDiffableLifecycle, newCL)
 }
 
 func (id *ImportDiffer) DiffClusterStore(keychain authn.Keychain, kpConfig config.KpConfig, oldCS *v1alpha2.ClusterStore, newCS ClusterStore) (string, error) {

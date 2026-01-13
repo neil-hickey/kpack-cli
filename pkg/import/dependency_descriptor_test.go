@@ -22,6 +22,12 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 	desc := importpkg.DependencyDescriptor{
 		DefaultClusterStack:   "some-stack",
 		DefaultClusterBuilder: "some-cb",
+		ClusterLifecycles: []importpkg.ClusterLifecycle{
+			{
+				Name:  "default",
+				Image: "lifecycle-image",
+			},
+		},
 		ClusterStores: []importpkg.ClusterStore{
 			{
 				Name: "some-store",
@@ -70,6 +76,16 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 
 		it("validates successfully", func() {
 			require.NoError(t, desc.Validate())
+		})
+
+		when("there is a duplicate lifecycle name", func() {
+			desc.ClusterLifecycles = append(desc.ClusterLifecycles, importpkg.ClusterLifecycle{
+				Name: "default",
+			})
+
+			it("fails validation", func() {
+				require.Error(t, desc.Validate())
+			})
 		})
 
 		when("there is a duplicate store name", func() {

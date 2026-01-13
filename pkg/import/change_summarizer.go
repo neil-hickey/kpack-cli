@@ -28,7 +28,7 @@ func SummarizeChange(
 		RelocatedImageProvider: relocatedImageProvider,
 	}
 
-	err = writeLifecycleChange(ctx, keychain, kpConfig, desc.Lifecycle, iDiffer, cs, &summarizer)
+	err = writeClusterLifecyclesChange(ctx, keychain, kpConfig, desc.ClusterLifecycles, iDiffer, cs, &summarizer)
 	if err != nil {
 		return
 	}

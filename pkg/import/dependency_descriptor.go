@@ -9,28 +9,31 @@ import (
 	"github.com/pkg/errors"
 )
 
-const CurrentAPIVersion = "kp.kpack.io/v1alpha3"
+const CurrentAPIVersion = "kp.kpack.io/v1"
 
 type API struct {
 	Version string `yaml:"apiVersion" json:"apiVersion"`
 }
 
 type DependencyDescriptor struct {
-	APIVersion            string           `yaml:"apiVersion" json:"apiVersion"`
-	Kind                  string           `yaml:"kind" json:"kind"`
-	DefaultClusterStack   string           `yaml:"defaultClusterStack" json:"defaultClusterStack"`
-	DefaultClusterBuilder string           `yaml:"defaultClusterBuilder" json:"defaultClusterBuilder"`
-	Lifecycle             Lifecycle        `yaml:"lifecycle" json:"lifecycle"`
-	ClusterStores         []ClusterStore   `yaml:"clusterStores" json:"clusterStores"`
-	ClusterStacks         []ClusterStack   `yaml:"clusterStacks" json:"clusterStacks"`
-	ClusterBuilders       []ClusterBuilder `yaml:"clusterBuilders" json:"clusterBuilders"`
+	APIVersion            string             `yaml:"apiVersion" json:"apiVersion"`
+	Kind                  string             `yaml:"kind" json:"kind"`
+	DefaultClusterStack   string             `yaml:"defaultClusterStack" json:"defaultClusterStack"`
+	DefaultClusterBuilder string             `yaml:"defaultClusterBuilder" json:"defaultClusterBuilder"`
+	ClusterLifecycles     []ClusterLifecycle `yaml:"clusterLifecycles" json:"clusterLifecycles"`
+	ClusterStores         []ClusterStore     `yaml:"clusterStores" json:"clusterStores"`
+	ClusterStacks         []ClusterStack     `yaml:"clusterStacks" json:"clusterStacks"`
+	ClusterBuilders       []ClusterBuilder   `yaml:"clusterBuilders" json:"clusterBuilders"`
 }
 
 type Source struct {
 	Image string `yaml:"image"`
 }
 
-type Lifecycle Source
+type ClusterLifecycle struct {
+	Name  string `yaml:"name" json:"name"`
+	Image string `yaml:"image" json:"image"`
+}
 
 type ClusterStore struct {
 	Name    string   `yaml:"name" json:"name"`
@@ -51,6 +54,19 @@ type ClusterBuilder struct {
 }
 
 func (d DependencyDescriptor) Validate() error {
+	lifecycleSet := map[string]interface{}{}
+	for _, lifecycle := range d.ClusterLifecycles {
+		if name, ok := lifecycleSet[lifecycle.Name]; ok {
+			return errors.Errorf("duplicate cluster lifecycle name '%s'", name)
+		}
+		lifecycleSet[lifecycle.Name] = nil
+
+		_, err := name.ParseReference(lifecycle.Image, name.WeakValidation)
+		if err != nil {
+			return err
+		}
+	}
+
 	storeSet := map[string]interface{}{}
 	for _, store := range d.ClusterStores {
 		if name, ok := storeSet[store.Name]; ok {
@@ -103,12 +119,8 @@ func (d DependencyDescriptor) Validate() error {
 	return nil
 }
 
-func (d DependencyDescriptor) GetLifecycleImage() string {
-	return d.Lifecycle.Image
-}
-
-func (d DependencyDescriptor) HasLifecycleImage() bool {
-	return d.Lifecycle.Image != ""
+func (d DependencyDescriptor) GetClusterLifecycles() []ClusterLifecycle {
+	return d.ClusterLifecycles
 }
 
 func (d DependencyDescriptor) GetClusterStacks() []ClusterStack {

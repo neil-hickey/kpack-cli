@@ -4,8 +4,8 @@
 package _import
 
 import (
-	corev1alpha1 "github.com/pivotal/kpack/pkg/apis/core/v1alpha1"
 	"github.com/buildpacks-community/kpack-cli/pkg/builder"
+	corev1alpha1 "github.com/pivotal/kpack/pkg/apis/core/v1alpha1"
 )
 
 const APIVersionV1 = "kp.kpack.io/v1alpha1"
@@ -27,7 +27,7 @@ type ClusterBuilderV1 struct {
 	Order []corev1alpha1.OrderEntry `yaml:"order"`
 }
 
-func (d1 DependencyDescriptorV1) ToNextVersion() DependencyDescriptor {
+func (d1 DependencyDescriptorV1) ToV1() DependencyDescriptor {
 	var d DependencyDescriptor
 	d.APIVersion = d1.APIVersion
 	d.Kind = d1.Kind
@@ -35,6 +35,9 @@ func (d1 DependencyDescriptorV1) ToNextVersion() DependencyDescriptor {
 	d.DefaultClusterBuilder = d1.DefaultClusterBuilder
 	d.ClusterStores = d1.Stores
 	d.ClusterStacks = d1.Stacks
+
+	// v1alpha1 doesn't have lifecycle, so ClusterLifecycles will be empty
+	d.ClusterLifecycles = []ClusterLifecycle{}
 	for _, cb := range d1.ClusterBuilders {
 		d.ClusterBuilders = append(d.ClusterBuilders, ClusterBuilder{
 			Name:         cb.Name,

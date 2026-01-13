@@ -66,7 +66,7 @@ func testDescriptorV1(t *testing.T, when spec.G, it spec.S) {
 		}
 
 		it("converts successfully", func() {
-			d := descV1.ToNextVersion()
+			d := descV1.ToV1()
 			require.NoError(t, d.Validate())
 		})
 	})

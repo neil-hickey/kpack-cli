@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/buildpacks-community/kpack-cli/pkg/clusterlifecycle"
 	"github.com/buildpacks-community/kpack-cli/pkg/clusterstack"
 	"github.com/buildpacks-community/kpack-cli/pkg/clusterstore"
 	"github.com/buildpacks-community/kpack-cli/pkg/commands"
@@ -35,35 +36,37 @@ type Printer interface {
 }
 
 type Importer struct {
-	client              versioned.Interface
-	k8sClient           kubernetes.Interface
-	printer             Printer
-	imageRelocator      registry.Relocator
-	imageFetcher        registry.Fetcher
-	waiter              commands.ResourceWaiter
-	clusterStoreFactory *clusterstore.Factory
-	clusterStackFactory *clusterstack.Factory
-	timestampProvider   TimestampProvider
+	client                  versioned.Interface
+	k8sClient               kubernetes.Interface
+	printer                 Printer
+	imageRelocator          registry.Relocator
+	imageFetcher            registry.Fetcher
+	waiter                  commands.ResourceWaiter
+	clusterLifecycleFactory *clusterlifecycle.Factory
+	clusterStoreFactory     *clusterstore.Factory
+	clusterStackFactory     *clusterstack.Factory
+	timestampProvider       TimestampProvider
 }
 
 type relocatedDescriptor struct {
-	lifecycle       *corev1.ConfigMap
-	clusterStores   []*v1alpha2.ClusterStore
-	clusterStacks   []*v1alpha2.ClusterStack
-	clusterBuilders []*v1alpha2.ClusterBuilder
+	clusterLifecycles []*v1alpha2.ClusterLifecycle
+	clusterStores     []*v1alpha2.ClusterStore
+	clusterStacks     []*v1alpha2.ClusterStack
+	clusterBuilders   []*v1alpha2.ClusterBuilder
 }
 
 func NewImporter(printer Printer, k8sClient kubernetes.Interface, client versioned.Interface, fetcher registry.Fetcher, relocator registry.Relocator, waiter commands.ResourceWaiter, timestampProvider TimestampProvider) *Importer {
 	return &Importer{
-		imageRelocator:      relocator,
-		client:              client,
-		k8sClient:           k8sClient,
-		printer:             printer,
-		waiter:              waiter,
-		imageFetcher:        fetcher,
-		timestampProvider:   timestampProvider,
-		clusterStackFactory: clusterstack.NewFactory(printer, relocator, fetcher),
-		clusterStoreFactory: clusterstore.NewFactory(printer, relocator, fetcher),
+		imageRelocator:          relocator,
+		client:                  client,
+		k8sClient:               k8sClient,
+		printer:                 printer,
+		waiter:                  waiter,
+		imageFetcher:            fetcher,
+		timestampProvider:       timestampProvider,
+		clusterLifecycleFactory: clusterlifecycle.NewFactory(printer, relocator, fetcher),
+		clusterStackFactory:     clusterstack.NewFactory(printer, relocator, fetcher),
+		clusterStoreFactory:     clusterstore.NewFactory(printer, relocator, fetcher),
 	}
 }
 
@@ -80,13 +83,19 @@ func (i *Importer) ReadDescriptor(rawDescriptor string) (DependencyDescriptor, e
 		if err := yaml.Unmarshal([]byte(rawDescriptor), &d1); err != nil {
 			return DependencyDescriptor{}, err
 		}
-		descriptor = d1.ToNextVersion()
+		descriptor = d1.ToV1()
+	case APIVersionV1Alpha3:
+		var d3 DependencyDescriptorV1Alpha3
+		if err := yaml.Unmarshal([]byte(rawDescriptor), &d3); err != nil {
+			return DependencyDescriptor{}, err
+		}
+		descriptor = d3.ToV1()
 	case CurrentAPIVersion:
 		if err := yaml.Unmarshal([]byte(rawDescriptor), &descriptor); err != nil {
 			return DependencyDescriptor{}, err
 		}
 	default:
-		return DependencyDescriptor{}, errors.Errorf("did not find expected apiVersion, must be one of: %s", []string{APIVersionV1, CurrentAPIVersion})
+		return DependencyDescriptor{}, errors.Errorf("did not find expected apiVersion, must be one of: %s", []string{APIVersionV1, APIVersionV1Alpha3, CurrentAPIVersion})
 	}
 
 	if err := descriptor.Validate(); err != nil {
@@ -107,8 +116,9 @@ func (i *Importer) ImportDescriptor(ctx context.Context, keychain authn.Keychain
 		return nil, err
 	}
 
-	if rDescriptor.lifecycle != nil {
-		if err := i.patchLifecycleConfigMap(ctx, rDescriptor.lifecycle); err != nil {
+	for _, lifecycle := range rDescriptor.clusterLifecycles {
+		_, err := i.saveClusterLifecycle(ctx, lifecycle)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -158,17 +168,19 @@ func (i *Importer) ImportDescriptorDryRun(ctx context.Context, keychain authn.Ke
 
 func (i *Importer) relocateDescriptor(ctx context.Context, keychain authn.Keychain, kpConfig config.KpConfig, ts string, descriptor DependencyDescriptor) (relocatedDescriptor, []runtime.Object, error) {
 	var (
-		updatedLifecycle *corev1.ConfigMap
-		err              error
-		objs             []runtime.Object
+		objs []runtime.Object
 	)
 
-	if descriptor.HasLifecycleImage() {
-		updatedLifecycle, err = i.relocateLifecycle(ctx, keychain, kpConfig, ts, descriptor.GetLifecycleImage())
+	clusterLifecycles := make([]*v1alpha2.ClusterLifecycle, 0)
+	for _, lifecycle := range descriptor.GetClusterLifecycles() {
+		rLifecycle, err := i.constructClusterLifecycle(keychain, kpConfig, lifecycle)
 		if err != nil {
 			return relocatedDescriptor{}, nil, err
 		}
-		objs = append(objs, updatedLifecycle)
+		rLifecycle.Annotations = k8s.MergeAnnotations(rLifecycle.Annotations, map[string]string{"kpack.io/import-timestamp": ts})
+
+		clusterLifecycles = append(clusterLifecycles, rLifecycle)
+		objs = append(objs, rLifecycle)
 	}
 
 	clusterstores := make([]*v1alpha2.ClusterStore, 0)
@@ -208,43 +220,11 @@ func (i *Importer) relocateDescriptor(ctx context.Context, keychain authn.Keycha
 	}
 
 	return relocatedDescriptor{
-		lifecycle:       updatedLifecycle,
-		clusterStores:   clusterstores,
-		clusterStacks:   clusterstacks,
-		clusterBuilders: clusterBuilders,
+		clusterLifecycles: clusterLifecycles,
+		clusterStores:     clusterstores,
+		clusterStacks:     clusterstacks,
+		clusterBuilders:   clusterBuilders,
 	}, objs, nil
-}
-
-func (i *Importer) relocateLifecycle(ctx context.Context, keychain authn.Keychain, kpConfig config.KpConfig, ts, lifecyle string) (*corev1.ConfigMap, error) {
-	if err := i.printer.PrintStatus("Importing Lifecycle..."); err != nil {
-		return nil, err
-	}
-
-	lifecycleImage, err := i.imageFetcher.Fetch(keychain, lifecyle)
-	if err != nil {
-		return nil, err
-	}
-
-	defaultRepo, err := kpConfig.DefaultRepository()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get default repository")
-	}
-
-	relocatedLifecycle, err := i.imageRelocator.Relocate(keychain, lifecycleImage, defaultRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	existingLifecycleConfig, err := i.k8sClient.CoreV1().ConfigMaps("kpack").Get(ctx, "lifecycle-image", metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	newConfigMap := existingLifecycleConfig.DeepCopy()
-
-	newConfigMap.SetAnnotations(map[string]string{"kpack.io/import-timestamp": ts})
-	newConfigMap.Data["image"] = relocatedLifecycle
-	return newConfigMap, nil
 }
 
 func (i *Importer) constructClusterStore(ctx context.Context, keychain authn.Keychain, kpConfig config.KpConfig, store ClusterStore) (*v1alpha2.ClusterStore, error) {
@@ -282,6 +262,14 @@ func (i *Importer) constructClusterStack(keychain authn.Keychain, kpConfig confi
 	}
 
 	return newStack, nil
+}
+
+func (i *Importer) constructClusterLifecycle(keychain authn.Keychain, kpConfig config.KpConfig, lifecycle ClusterLifecycle) (*v1alpha2.ClusterLifecycle, error) {
+	if err := i.printer.PrintStatus("Importing ClusterLifecycle '%s'...", lifecycle.Name); err != nil {
+		return nil, err
+	}
+
+	return i.clusterLifecycleFactory.MakeLifecycle(keychain, lifecycle.Name, lifecycle.Image, kpConfig)
 }
 
 func (i *Importer) constructClusterBuilder(kpConfig config.KpConfig, builder ClusterBuilder) (*v1alpha2.ClusterBuilder, error) {
@@ -327,20 +315,37 @@ func (i *Importer) constructClusterBuilder(kpConfig config.KpConfig, builder Clu
 	return newCB, nil
 }
 
-func (i *Importer) patchLifecycleConfigMap(ctx context.Context, updatedLifecycle *corev1.ConfigMap) error {
-	existingLifecycle, err := i.k8sClient.CoreV1().ConfigMaps("kpack").Get(ctx, updatedLifecycle.Name, metav1.GetOptions{})
-	if err != nil {
-		return err
+func (i *Importer) saveClusterLifecycle(ctx context.Context, relocatedLifecycle *v1alpha2.ClusterLifecycle) (int64, error) {
+	existingLifecycle, err := i.client.KpackV1alpha2().ClusterLifecycles().Get(ctx, relocatedLifecycle.Name, metav1.GetOptions{})
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return 0, err
 	}
 
-	patch, err := k8s.CreatePatch(existingLifecycle, updatedLifecycle)
-	if err != nil {
-		return err
+	var lifecycle *v1alpha2.ClusterLifecycle
+	if k8serrors.IsNotFound(err) {
+		lifecycle, err = i.client.KpackV1alpha2().ClusterLifecycles().Create(ctx, relocatedLifecycle, metav1.CreateOptions{})
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		updateLifecycle := existingLifecycle.DeepCopy()
+		updateLifecycle.Spec = relocatedLifecycle.Spec
+		updateLifecycle.Annotations = k8s.MergeAnnotations(updateLifecycle.Annotations, relocatedLifecycle.Annotations)
+		patch, err := k8s.CreatePatch(existingLifecycle, updateLifecycle)
+		if err != nil {
+			return 0, err
+		}
+		lifecycle, err = i.client.KpackV1alpha2().ClusterLifecycles().Patch(ctx, updateLifecycle.Name, types.MergePatchType, patch, metav1.PatchOptions{})
+		if err != nil {
+			return 0, err
+		}
 	}
 
-	_, err = i.k8sClient.CoreV1().ConfigMaps("kpack").Patch(ctx, updatedLifecycle.Name, types.MergePatchType, patch, metav1.PatchOptions{})
+	if err := i.waiter.Wait(ctx, lifecycle); err != nil {
+		return 0, err
+	}
 
-	return err
+	return lifecycle.Generation, nil
 }
 
 func (i *Importer) saveClusterStore(ctx context.Context, relocatedStore *v1alpha2.ClusterStore) (int64, error) {
