@@ -56,6 +56,9 @@ type ClusterBuilder struct {
 func (d DependencyDescriptor) Validate() error {
 	lifecycleSet := map[string]interface{}{}
 	for _, lifecycle := range d.ClusterLifecycles {
+		if lifecycle.Name == "" {
+			return errors.New("cluster lifecycle name cannot be empty")
+		}
 		if name, ok := lifecycleSet[lifecycle.Name]; ok {
 			return errors.Errorf("duplicate cluster lifecycle name '%s'", name)
 		}

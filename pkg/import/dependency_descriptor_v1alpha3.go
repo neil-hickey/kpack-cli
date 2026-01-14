@@ -22,7 +22,7 @@ type DependencyDescriptorV1Alpha3 struct {
 
 func (d DependencyDescriptorV1Alpha3) ToV1() DependencyDescriptor {
 	var v1 DependencyDescriptor
-	v1.APIVersion = d.APIVersion
+	v1.APIVersion = CurrentAPIVersion
 	v1.Kind = d.Kind
 	v1.DefaultClusterStack = d.DefaultClusterStack
 	v1.DefaultClusterBuilder = d.DefaultClusterBuilder

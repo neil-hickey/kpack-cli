@@ -80,11 +80,28 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 
 		when("there is a duplicate lifecycle name", func() {
 			desc.ClusterLifecycles = append(desc.ClusterLifecycles, importpkg.ClusterLifecycle{
-				Name: "default",
+				Name:  "default",
+				Image: "another-image",
 			})
 
 			it("fails validation", func() {
 				require.Error(t, desc.Validate())
+			})
+		})
+
+		when("there is a lifecycle with empty name", func() {
+			it("fails validation", func() {
+				descWithEmptyName := importpkg.DependencyDescriptor{
+					ClusterLifecycles: []importpkg.ClusterLifecycle{
+						{
+							Name:  "",
+							Image: "some-image",
+						},
+					},
+				}
+				err := descWithEmptyName.Validate()
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "cluster lifecycle name cannot be empty")
 			})
 		})
 

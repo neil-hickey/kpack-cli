@@ -29,7 +29,7 @@ type ClusterBuilderV1 struct {
 
 func (d1 DependencyDescriptorV1) ToV1() DependencyDescriptor {
 	var d DependencyDescriptor
-	d.APIVersion = d1.APIVersion
+	d.APIVersion = CurrentAPIVersion
 	d.Kind = d1.Kind
 	d.DefaultClusterStack = d1.DefaultStack
 	d.DefaultClusterBuilder = d1.DefaultClusterBuilder
