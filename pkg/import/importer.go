@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/buildpacks-community/kpack-cli/pkg/clusterbuildpack"
 	"github.com/buildpacks-community/kpack-cli/pkg/clusterlifecycle"
 	"github.com/buildpacks-community/kpack-cli/pkg/clusterstack"
 	"github.com/buildpacks-community/kpack-cli/pkg/clusterstore"
@@ -37,16 +38,17 @@ type Printer interface {
 }
 
 type Importer struct {
-	client                  versioned.Interface
-	k8sClient               kubernetes.Interface
-	printer                 Printer
-	imageRelocator          registry.Relocator
-	imageFetcher            registry.Fetcher
-	waiter                  commands.ResourceWaiter
-	clusterLifecycleFactory *clusterlifecycle.Factory
-	clusterStoreFactory     *clusterstore.Factory
-	clusterStackFactory     *clusterstack.Factory
-	timestampProvider       TimestampProvider
+	client                   versioned.Interface
+	k8sClient                kubernetes.Interface
+	printer                  Printer
+	imageRelocator           registry.Relocator
+	imageFetcher             registry.Fetcher
+	waiter                   commands.ResourceWaiter
+	clusterLifecycleFactory  *clusterlifecycle.Factory
+	clusterBuildpackFactory  *clusterbuildpack.Factory
+	clusterStoreFactory      *clusterstore.Factory
+	clusterStackFactory      *clusterstack.Factory
+	timestampProvider        TimestampProvider
 }
 
 type relocatedDescriptor struct {
@@ -59,16 +61,17 @@ type relocatedDescriptor struct {
 
 func NewImporter(printer Printer, k8sClient kubernetes.Interface, client versioned.Interface, fetcher registry.Fetcher, relocator registry.Relocator, waiter commands.ResourceWaiter, timestampProvider TimestampProvider) *Importer {
 	return &Importer{
-		imageRelocator:          relocator,
-		client:                  client,
-		k8sClient:               k8sClient,
-		printer:                 printer,
-		waiter:                  waiter,
-		imageFetcher:            fetcher,
-		timestampProvider:       timestampProvider,
-		clusterLifecycleFactory: clusterlifecycle.NewFactory(printer, relocator, fetcher),
-		clusterStackFactory:     clusterstack.NewFactory(printer, relocator, fetcher),
-		clusterStoreFactory:     clusterstore.NewFactory(printer, relocator, fetcher),
+		imageRelocator:           relocator,
+		client:                   client,
+		k8sClient:                k8sClient,
+		printer:                  printer,
+		waiter:                   waiter,
+		imageFetcher:             fetcher,
+		timestampProvider:        timestampProvider,
+		clusterLifecycleFactory:  clusterlifecycle.NewFactory(printer, relocator, fetcher),
+		clusterBuildpackFactory:  clusterbuildpack.NewFactory(printer, relocator, fetcher),
+		clusterStackFactory:      clusterstack.NewFactory(printer, relocator, fetcher),
+		clusterStoreFactory:      clusterstore.NewFactory(printer, relocator, fetcher),
 	}
 }
 
@@ -194,7 +197,7 @@ func (i *Importer) relocateDescriptor(ctx context.Context, keychain authn.Keycha
 
 	clusterBuildpacks := make([]*v1alpha2.ClusterBuildpack, 0)
 	for _, buildpack := range GetClusterBuildpacks(descriptor) {
-		rBuildpack, err := i.constructClusterBuildpack(kpConfig, buildpack)
+		rBuildpack, err := i.constructClusterBuildpack(keychain, kpConfig, buildpack)
 		if err != nil {
 			return relocatedDescriptor{}, nil, err
 		}
@@ -294,33 +297,12 @@ func (i *Importer) constructClusterLifecycle(keychain authn.Keychain, kpConfig c
 	return i.clusterLifecycleFactory.MakeLifecycle(keychain, lifecycle.Name, lifecycle.Image, kpConfig)
 }
 
-// constructClusterBuildpack creates a ClusterBuildpack resource from a descriptor.
-// Note: Unlike ClusterStore/ClusterStack/ClusterLifecycle, ClusterBuildpack images are not
-// relocated. The image reference is used as-is, and kpack's controller will handle
-// pulling from the original location using the configured service account.
-func (i *Importer) constructClusterBuildpack(kpConfig config.KpConfig, buildpack ClusterBuildpack) (*v1alpha2.ClusterBuildpack, error) {
+func (i *Importer) constructClusterBuildpack(keychain authn.Keychain, kpConfig config.KpConfig, buildpack ClusterBuildpack) (*v1alpha2.ClusterBuildpack, error) {
 	if err := i.printer.PrintStatus("Importing ClusterBuildpack '%s'...", buildpack.Name); err != nil {
 		return nil, err
 	}
 
-	sa := kpConfig.ServiceAccount()
-
-	return &v1alpha2.ClusterBuildpack{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha2.ClusterBuildpackKind,
-			APIVersion: "kpack.io/v1alpha2",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        buildpack.Name,
-			Annotations: map[string]string{},
-		},
-		Spec: v1alpha2.ClusterBuildpackSpec{
-			ImageSource: corev1alpha1.ImageSource{
-				Image: buildpack.Image,
-			},
-			ServiceAccountRef: &sa,
-		},
-	}, nil
+	return i.clusterBuildpackFactory.MakeBuildpack(keychain, buildpack.Name, buildpack.Image, kpConfig)
 }
 
 func (i *Importer) constructClusterBuilder(kpConfig config.KpConfig, builder ClusterBuilder) (*v1alpha2.ClusterBuilder, error) {
