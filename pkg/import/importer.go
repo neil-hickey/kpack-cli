@@ -294,6 +294,10 @@ func (i *Importer) constructClusterLifecycle(keychain authn.Keychain, kpConfig c
 	return i.clusterLifecycleFactory.MakeLifecycle(keychain, lifecycle.Name, lifecycle.Image, kpConfig)
 }
 
+// constructClusterBuildpack creates a ClusterBuildpack resource from a descriptor.
+// Note: Unlike ClusterStore/ClusterStack/ClusterLifecycle, ClusterBuildpack images are not
+// relocated during construction. The image reference is used as-is, and kpack's controller
+// will handle pulling from the original location using the configured service account.
 func (i *Importer) constructClusterBuildpack(kpConfig config.KpConfig, buildpack ClusterBuildpack) (*v1alpha2.ClusterBuildpack, error) {
 	if err := i.printer.PrintStatus("Importing ClusterBuildpack '%s'...", buildpack.Name); err != nil {
 		return nil, err

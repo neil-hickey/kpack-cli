@@ -41,6 +41,8 @@ func (d DependencyDescriptorV1Alpha3) ToV1(currentAPIVersion string) DependencyD
 				Image: d.Lifecycle.Image,
 			},
 		}
+	} else {
+		v1.ClusterLifecycles = []ClusterLifecycle{}
 	}
 
 	return v1
