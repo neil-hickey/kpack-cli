@@ -72,10 +72,10 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			},
 		},
 	}
-	when("#Validate", func() {
+	when("#ValidateDescriptor", func() {
 
 		it("validates successfully", func() {
-			require.NoError(t, desc.Validate())
+			require.NoError(t, importpkg.ValidateDescriptor(desc))
 		})
 
 		when("there is a duplicate lifecycle name", func() {
@@ -85,7 +85,7 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			})
 
 			it("fails validation", func() {
-				require.Error(t, desc.Validate())
+				require.Error(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 
@@ -99,9 +99,39 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 						},
 					},
 				}
-				err := descWithEmptyName.Validate()
+				err := importpkg.ValidateDescriptor(descWithEmptyName)
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "cluster lifecycle name cannot be empty")
+			})
+		})
+
+		when("there is a buildpack with empty name", func() {
+			it("fails validation", func() {
+				descWithEmptyName := importpkg.DependencyDescriptor{
+					ClusterBuildpacks: []importpkg.ClusterBuildpack{
+						{
+							Name:  "",
+							Image: "some-image",
+						},
+					},
+				}
+				err := importpkg.ValidateDescriptor(descWithEmptyName)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "cluster buildpack name cannot be empty")
+			})
+		})
+
+		when("there is a duplicate buildpack name", func() {
+			it("fails validation", func() {
+				descWithDupe := importpkg.DependencyDescriptor{
+					ClusterBuildpacks: []importpkg.ClusterBuildpack{
+						{Name: "my-bp", Image: "image1"},
+						{Name: "my-bp", Image: "image2"},
+					},
+				}
+				err := importpkg.ValidateDescriptor(descWithDupe)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "duplicate cluster buildpack name")
 			})
 		})
 
@@ -111,7 +141,7 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			})
 
 			it("fails validation", func() {
-				require.Error(t, desc.Validate())
+				require.Error(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 
@@ -121,7 +151,7 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			})
 
 			it("fails validation", func() {
-				require.Error(t, desc.Validate())
+				require.Error(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 
@@ -133,7 +163,7 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			})
 
 			it("fails validation", func() {
-				require.Error(t, desc.Validate())
+				require.Error(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 
@@ -141,7 +171,7 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			desc.DefaultClusterStack = "does-not-exist"
 
 			it("fails validation", func() {
-				require.Error(t, desc.Validate())
+				require.Error(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 
@@ -149,7 +179,7 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			desc.DefaultClusterStack = ""
 
 			it("validates successfully", func() {
-				require.NoError(t, desc.Validate())
+				require.NoError(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 
@@ -157,7 +187,7 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			desc.DefaultClusterBuilder = "does-not-exist"
 
 			it("fails validation", func() {
-				require.Error(t, desc.Validate())
+				require.Error(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 
@@ -165,14 +195,14 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 			desc.DefaultClusterBuilder = ""
 
 			it("validates successfully", func() {
-				require.NoError(t, desc.Validate())
+				require.NoError(t, importpkg.ValidateDescriptor(desc))
 			})
 		})
 	})
 
-	when("#GetClusterStacks", func() {
+	when("GetClusterStacks", func() {
 		it("returns the cluster stacks and the default cluster stack", func() {
-			stacks := desc.GetClusterStacks()
+			stacks := importpkg.GetClusterStacks(desc)
 			expectedStacks := []importpkg.ClusterStack{
 				{Name: "some-stack", BuildImage: importpkg.Source{Image: "build-image"}, RunImage: importpkg.Source{Image: "run-image"}},
 				{Name: "default", BuildImage: importpkg.Source{Image: "build-image"}, RunImage: importpkg.Source{Image: "run-image"}}}
@@ -180,9 +210,9 @@ func testDescriptor(t *testing.T, when spec.G, it spec.S) {
 		})
 	})
 
-	when("#GetClusterBuilders", func() {
+	when("GetClusterBuilders", func() {
 		it("returns the cluster builders and the default cluster builder", func() {
-			builders := desc.GetClusterBuilders()
+			builders := importpkg.GetClusterBuilders(desc)
 			expectedBuilders := []importpkg.ClusterBuilder{
 				{
 					Name:         "some-cb",

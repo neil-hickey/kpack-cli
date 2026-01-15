@@ -404,6 +404,10 @@ ClusterLifecycles
 
 some-diff
 
+ClusterBuildpacks
+
+No Changes
+
 ClusterStores
 
 some-diff
@@ -471,6 +475,10 @@ Imported resources
 ClusterLifecycles
 
 some-diff
+
+ClusterBuildpacks
+
+No Changes
 
 ClusterStores
 

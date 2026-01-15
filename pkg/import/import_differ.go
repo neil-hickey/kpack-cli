@@ -45,6 +45,18 @@ func (id *ImportDiffer) DiffClusterLifecycle(keychain authn.Keychain, kpConfig c
 	return id.Differ.Diff(oldDiffableLifecycle, newCL)
 }
 
+func (id *ImportDiffer) DiffClusterBuildpack(oldCBP *v1alpha2.ClusterBuildpack, newCBP ClusterBuildpack) (string, error) {
+	var oldDiffableBuildpack interface{}
+	if oldCBP != nil {
+		oldDiffableBuildpack = ClusterBuildpack{
+			Name:  oldCBP.Name,
+			Image: oldCBP.Spec.ImageSource.Image,
+		}
+	}
+
+	return id.Differ.Diff(oldDiffableBuildpack, newCBP)
+}
+
 func (id *ImportDiffer) DiffClusterStore(keychain authn.Keychain, kpConfig config.KpConfig, oldCS *v1alpha2.ClusterStore, newCS ClusterStore) (string, error) {
 	type void struct{}
 	newBPs := map[string]void{}

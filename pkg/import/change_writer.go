@@ -42,6 +42,29 @@ func writeClusterLifecyclesChange(ctx context.Context, keychain authn.Keychain, 
 	return nil
 }
 
+func writeClusterBuildpacksChange(ctx context.Context, buildpacks []ClusterBuildpack, differ *ImportDiffer, cs buildk8s.ClientSet, cw changeWriter) error {
+	for _, buildpack := range buildpacks {
+		oldBuildpack, err := cs.KpackClient.KpackV1alpha2().ClusterBuildpacks().Get(ctx, buildpack.Name, metav1.GetOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+		if k8serrors.IsNotFound(err) {
+			oldBuildpack = nil
+		}
+
+		diff, err := differ.DiffClusterBuildpack(oldBuildpack, buildpack)
+		if err != nil {
+			return err
+		}
+		if err = cw.writeDiff(diff); err != nil {
+			return err
+		}
+	}
+
+	cw.writeChange("ClusterBuildpacks")
+	return nil
+}
+
 func writeClusterStoresChange(ctx context.Context, keychain authn.Keychain, kpConfig config.KpConfig, stores []ClusterStore, differ *ImportDiffer, cs buildk8s.ClientSet, cw changeWriter) error {
 	for _, store := range stores {
 		oldStore, err := cs.KpackClient.KpackV1alpha2().ClusterStores().Get(ctx, store.Name, metav1.GetOptions{})

@@ -55,7 +55,7 @@ func testImporter(t *testing.T, when spec.G, it spec.S) {
 
 		existingLifecycle = &v1alpha2.ClusterLifecycle{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "default",
+				Name: v1alpha2.DefaultLifecycleName, // "default-lifecycle"
 			},
 			Spec: v1alpha2.ClusterLifecycleSpec{
 				ImageSource: corev1alpha1.ImageSource{
@@ -66,6 +66,7 @@ func testImporter(t *testing.T, when spec.G, it spec.S) {
 	)
 	when("importing dependencies", func() {
 		var (
+			expectedClusterLifecycle      runtime.Object
 			expectedDefaultClusterStore   runtime.Object
 			expectedClusterStack          runtime.Object
 			expectedDefaultClusterStack   runtime.Object
@@ -74,6 +75,24 @@ func testImporter(t *testing.T, when spec.G, it spec.S) {
 		)
 
 		it.Before(func() {
+			expectedClusterLifecycle = annotate(t, &v1alpha2.ClusterLifecycle{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ClusterLifecycle",
+					APIVersion: "kpack.io/v1alpha2",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: v1alpha2.DefaultLifecycleName,
+				},
+				Spec: v1alpha2.ClusterLifecycleSpec{
+					ImageSource: corev1alpha1.ImageSource{
+						Image: fmt.Sprintf("gcr.io/my-cool-repo@sha256:%s", lifecycleDigest),
+					},
+					ServiceAccountRef: &corev1.ObjectReference{
+						Namespace: "some-namespace",
+						Name:      "some-serviceaccount",
+					},
+				},
+			}, timestampAnnotation)
 			expectedDefaultClusterStore = annotate(t, &v1alpha2.ClusterStore{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "ClusterStore",
@@ -226,9 +245,7 @@ func testImporter(t *testing.T, when spec.G, it spec.S) {
 					"new-image.com/stacks/base/run":        fakes.NewFakeLabeledImage("io.buildpacks.stack.id", stackId, runImageDigest),
 					"new-image.com/stacks/base/build":      fakes.NewFakeLabeledImage("io.buildpacks.stack.id", stackId, buildImageDigest),
 				},
-				Objects: []runtime.Object{
-					existingLifecycle,
-				},
+				Objects:  []runtime.Object{},
 				KpConfig: kpConfig,
 				DependencyDescriptor: `
 apiVersion: kp.kpack.io/v1alpha3
@@ -256,14 +273,12 @@ clusterBuilders:
     - id: tanzu-buildpacks/dotnet-core
 `,
 				ExpectCreates: []runtime.Object{
+					expectedClusterLifecycle,
 					expectedDefaultClusterStore,
 					expectedClusterStack,
 					expectedDefaultClusterStack,
 					expectedClusterBuilder,
 					expectedDefaultClusterBuilder,
-				},
-				ExpectPatches: []string{
-					`{"metadata":{"annotations":{"kpack.io/import-timestamp":"0001-01-01 00:00:00 +0000 UTC"}},"spec":{"image":"gcr.io/my-cool-repo@sha256:lifecycledigest","serviceAccountRef":{"name":"some-serviceaccount","namespace":"some-namespace"}}}`,
 				},
 			}.TestImporter(t)
 		})

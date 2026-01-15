@@ -33,17 +33,22 @@ func SummarizeChange(
 		return
 	}
 
+	err = writeClusterBuildpacksChange(ctx, desc.ClusterBuildpacks, iDiffer, cs, &summarizer)
+	if err != nil {
+		return
+	}
+
 	err = writeClusterStoresChange(ctx, keychain, kpConfig, desc.ClusterStores, iDiffer, cs, &summarizer)
 	if err != nil {
 		return
 	}
 
-	err = writeClusterStacksChange(ctx, keychain, kpConfig, desc.GetClusterStacks(), iDiffer, cs, &summarizer)
+	err = writeClusterStacksChange(ctx, keychain, kpConfig, GetClusterStacks(desc), iDiffer, cs, &summarizer)
 	if err != nil {
 		return
 	}
 
-	err = writeClusterBuildersChange(ctx, desc.GetClusterBuilders(), iDiffer, cs, &summarizer)
+	err = writeClusterBuildersChange(ctx, GetClusterBuilders(desc), iDiffer, cs, &summarizer)
 	if err != nil {
 		return
 	}

@@ -1,14 +1,13 @@
 // Copyright 2020-Present VMware, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package _import
+package conversion
 
-const APIVersionV1Alpha3 = "kp.kpack.io/v1alpha3"
+import (
+	"github.com/pivotal/kpack/pkg/apis/build/v1alpha2"
+)
 
-type Lifecycle struct {
-	Image string `yaml:"image" json:"image"`
-}
-
+// DependencyDescriptorV1Alpha3 represents the v1alpha3 format of the dependency descriptor
 type DependencyDescriptorV1Alpha3 struct {
 	APIVersion            string           `yaml:"apiVersion"`
 	Kind                  string           `yaml:"kind"`
@@ -20,9 +19,10 @@ type DependencyDescriptorV1Alpha3 struct {
 	ClusterBuilders       []ClusterBuilder `yaml:"clusterBuilders"`
 }
 
-func (d DependencyDescriptorV1Alpha3) ToV1() DependencyDescriptor {
+// ToV1 converts a v1alpha3 descriptor to the v1 format
+func (d DependencyDescriptorV1Alpha3) ToV1(currentAPIVersion string) DependencyDescriptor {
 	var v1 DependencyDescriptor
-	v1.APIVersion = CurrentAPIVersion
+	v1.APIVersion = currentAPIVersion
 	v1.Kind = d.Kind
 	v1.DefaultClusterStack = d.DefaultClusterStack
 	v1.DefaultClusterBuilder = d.DefaultClusterBuilder
@@ -30,11 +30,14 @@ func (d DependencyDescriptorV1Alpha3) ToV1() DependencyDescriptor {
 	v1.ClusterStacks = d.ClusterStacks
 	v1.ClusterBuilders = d.ClusterBuilders
 
-	// Convert single lifecycle to array with name "default"
+	// v1alpha3 doesn't have buildpacks
+	v1.ClusterBuildpacks = []ClusterBuildpack{}
+
+	// Convert single lifecycle to array with kpack's default lifecycle name
 	if d.Lifecycle.Image != "" {
 		v1.ClusterLifecycles = []ClusterLifecycle{
 			{
-				Name:  "default",
+				Name:  v1alpha2.DefaultLifecycleName,
 				Image: d.Lifecycle.Image,
 			},
 		}
