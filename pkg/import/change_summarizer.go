@@ -33,7 +33,7 @@ func SummarizeChange(
 		return
 	}
 
-	err = writeClusterBuildpacksChange(ctx, keychain, kpConfig, desc.ClusterBuildpacks, iDiffer, cs, &summarizer)
+	err = writeClusterBuildpacksChange(ctx, desc.ClusterBuildpacks, iDiffer, cs, &summarizer)
 	if err != nil {
 		return
 	}

@@ -42,7 +42,7 @@ func writeClusterLifecyclesChange(ctx context.Context, keychain authn.Keychain, 
 	return nil
 }
 
-func writeClusterBuildpacksChange(ctx context.Context, keychain authn.Keychain, kpConfig config.KpConfig, buildpacks []ClusterBuildpack, differ *ImportDiffer, cs buildk8s.ClientSet, cw changeWriter) error {
+func writeClusterBuildpacksChange(ctx context.Context, buildpacks []ClusterBuildpack, differ *ImportDiffer, cs buildk8s.ClientSet, cw changeWriter) error {
 	for _, buildpack := range buildpacks {
 		oldBuildpack, err := cs.KpackClient.KpackV1alpha2().ClusterBuildpacks().Get(ctx, buildpack.Name, metav1.GetOptions{})
 		if err != nil && !k8serrors.IsNotFound(err) {
@@ -52,7 +52,7 @@ func writeClusterBuildpacksChange(ctx context.Context, keychain authn.Keychain, 
 			oldBuildpack = nil
 		}
 
-		diff, err := differ.DiffClusterBuildpack(keychain, kpConfig, oldBuildpack, buildpack)
+		diff, err := differ.DiffClusterBuildpack(oldBuildpack, buildpack)
 		if err != nil {
 			return err
 		}
